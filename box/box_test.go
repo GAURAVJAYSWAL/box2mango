@@ -1,4 +1,4 @@
-package box2mango
+package box
 
 import (
 	"testing"
@@ -7,15 +7,14 @@ import (
 )
 
 func TestGetEntpToken(t *testing.T) {
-	err := godotenv.Load()
+	err := godotenv.Load("../.env")
 	if err != nil {
 		t.Errorf("Error loading .env file")
 	}
-
-	token, errStr, err := getEntpToken()
-	if err != nil || token == "" {
+	tok, errStr, err := getEntpToken()
+	if err != nil || tok == nil {
 		t.Errorf("Error getting enterprise token: %v : %v", errStr, err)
-	} else {
-		t.Logf("Token: %v", token)
 	}
+
+	getEntpUsers(tok)
 }
