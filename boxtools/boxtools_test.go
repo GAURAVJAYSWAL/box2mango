@@ -1,4 +1,4 @@
-package box
+package boxtools
 
 import (
 	"testing"
@@ -11,10 +11,10 @@ func TestGetEntpToken(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error loading .env file")
 	}
-	tok, errStr, err := getEntpToken()
+	tok, errStr, err := GetEntpToken()
 	if err != nil || tok == nil {
 		t.Errorf("Error getting enterprise token: %v : %v", errStr, err)
 	}
 
-	getEntpUsers(tok)
+	GetEntpUsers(tok)
 }

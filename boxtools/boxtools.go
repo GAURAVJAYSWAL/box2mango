@@ -1,4 +1,4 @@
-package box
+package boxtools
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func getEntpUsers(tok *oauth2.Token) (*box.Users, error) {
+func GetEntpUsers(tok *oauth2.Token) (*box.Users, error) {
 	var (
 		configSource = box.NewConfigSource(
 			&oauth2.Config{
@@ -40,7 +40,7 @@ func getEntpUsers(tok *oauth2.Token) (*box.Users, error) {
 
 }
 
-func getEntpToken() (*oauth2.Token, string, error) {
+func GetEntpToken() (*oauth2.Token, string, error) {
 	privateKeyData, err := ioutil.ReadFile(os.Getenv("PRIVATEKEY"))
 	if err != nil {
 		return nil, "Getting PrivateKey", err

@@ -1,4 +1,4 @@
-package mango
+package mangotools
 
 import (
 	"testing"
@@ -11,7 +11,7 @@ func TestCreateFolderEntry(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error loading .env file")
 	}
-	err1 := createFolderEntry("Test Folder")
+	err1 := CreateUserBoxFolderEntry("siddhartham@mangospring.com")
 	if err1 != nil {
 		t.Errorf(err1.Error())
 	}
