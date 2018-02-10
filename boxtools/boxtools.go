@@ -18,6 +18,7 @@ import (
 )
 
 func (bs *BoxService) GetEntpUsers() (*box.Users, error) {
+	//Todo: make this call native to this codebase
 	_, users, err := bs.Client().UserService().GetEnterpriseUsers(0, 1000)
 	return users, err
 }
@@ -42,8 +43,13 @@ type BoxService struct {
 }
 
 func (bs *BoxService) Client() *box.Client {
-	bs.GetEntpToken()
-	return configSource.NewClient(bs.EntpToken)
+	c := configSource.NewClient(bs.EntpToken)
+	//Todo: remove this chk with proper one
+	if _, _, err := c.UserService().Me(); err != nil {
+		bs.GetEntpToken()
+		c = configSource.NewClient(bs.EntpToken)
+	}
+	return c
 }
 
 func (bs *BoxService) GetEntpToken() (string, error) {
