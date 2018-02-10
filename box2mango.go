@@ -27,18 +27,13 @@ func main() {
 }
 
 func createAllUserFolders() {
-	tok, errStr, err := boxtools.GetEntpToken()
-	if err != nil || tok == nil {
-		fmt.Printf("Error getting enterprise token: %v : %v", errStr, err)
-	}
-
-	users, err := boxtools.GetEntpUsers(tok)
+	bs := boxtools.BoxService{}
+	users, err := bs.GetEntpUsers()
 	if err != nil {
 		fmt.Printf("Error getting enterprise users: %v", err)
 	}
-
 	for _, user := range users.Entries {
 		fmt.Printf("\nCreating folder for %v\n", user.Login)
-		mangotools.CreateUserBoxFolderEntry(user.Login)
+		mangotools.CreateUserBoxFolderEntry(user.Login, user.Name)
 	}
 }

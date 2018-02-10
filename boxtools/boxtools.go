@@ -17,37 +17,43 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func GetEntpUsers(tok *oauth2.Token) (*box.Users, error) {
-	var (
-		configSource = box.NewConfigSource(
-			&oauth2.Config{
-				ClientID:     os.Getenv("CLIENTID"),
-				ClientSecret: os.Getenv("CLIENTSECRET"),
-				Scopes:       nil,
-				Endpoint: oauth2.Endpoint{
-					AuthURL:  "https://app.box.com/api/oauth2/authorize",
-					TokenURL: "https://app.box.com/api/oauth2/token",
-				},
-				RedirectURL: "http://localhost:8080/handle",
-			},
-		)
-		c = configSource.NewClient(tok)
-	)
-
-	_, users, err := c.UserService().GetEnterpriseUsers(0, 1000)
-
+func (bs *BoxService) GetEntpUsers() (*box.Users, error) {
+	_, users, err := bs.Client().UserService().GetEnterpriseUsers(0, 1000)
 	return users, err
-
 }
 
-func GetEntpToken() (*oauth2.Token, string, error) {
+var (
+	configSource = box.NewConfigSource(
+		&oauth2.Config{
+			ClientID:     os.Getenv("CLIENTID"),
+			ClientSecret: os.Getenv("CLIENTSECRET"),
+			Scopes:       nil,
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "https://app.box.com/api/oauth2/authorize",
+				TokenURL: "https://app.box.com/api/oauth2/token",
+			},
+			RedirectURL: "http://localhost:8080/handle",
+		},
+	)
+)
+
+type BoxService struct {
+	EntpToken *oauth2.Token
+}
+
+func (bs *BoxService) Client() *box.Client {
+	bs.GetEntpToken()
+	return configSource.NewClient(bs.EntpToken)
+}
+
+func (bs *BoxService) GetEntpToken() (string, error) {
 	privateKeyData, err := ioutil.ReadFile(os.Getenv("PRIVATEKEY"))
 	if err != nil {
-		return nil, "Getting PrivateKey", err
+		return "Getting PrivateKey", err
 	}
 	privateKey, err := jwt.ParseRSAPrivateKeyFromPEM(privateKeyData)
 	if err != nil {
-		return nil, "Parsing PrivateKey", err
+		return "Parsing PrivateKey", err
 	}
 
 	u1 := uuid.Must(uuid.NewV4())
@@ -89,15 +95,12 @@ func GetEntpToken() (*oauth2.Token, string, error) {
 	resp, _ := client.Do(r)
 	body, _ := ioutil.ReadAll(resp.Body)
 
-	entpToken := new(oauth2.Token)
+	bs.EntpToken = new(oauth2.Token)
 	if value, err := jsonparser.GetString(body, "access_token"); err == nil {
-		entpToken.AccessToken = value
+		bs.EntpToken.AccessToken = value
 	}
-	// if value, err := jsonparser.GetInt(body, "expires_in"); err == nil {
-	// 	entpToken.Expiry = value
-	// }
 
-	fmt.Printf("Got AccessToken: %v", entpToken)
+	fmt.Printf("Got AccessToken: %v", bs.EntpToken)
 
-	return entpToken, "", nil
+	return "", nil
 }
