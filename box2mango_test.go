@@ -13,3 +13,10 @@ func TestCreateAllUserFolders(t *testing.T) {
 	}
 	createAllUserFolders()
 }
+
+func TestDownloadFolders(t *testing.T) {
+	err := godotenv.Load(".env")
+	if err != nil {
+		t.Errorf("Error loading .env file")
+	}
+}

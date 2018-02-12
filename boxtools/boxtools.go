@@ -89,47 +89,7 @@ func (bs *BoxService) UserClient(userId string) *box.Client {
 	}
 
 	if tokenFound == false || userToken == nil || userToken.Expiry.Before(time.Now()) || userToken.Expiry.Equal(time.Now()) {
-		privateKeyData, _ := ioutil.ReadFile(os.Getenv("PRIVATEKEY"))
-		privateKey, _ := jwt.ParseRSAPrivateKeyFromPEM(privateKeyData)
-
-		u1 := uuid.Must(uuid.NewV4())
-
-		token := jwt.New(jwt.GetSigningMethod("RS256"))
-
-		claims := make(jwt.MapClaims)
-		claims["iss"] = os.Getenv("CLIENTID")
-		claims["sub"] = userId
-		claims["box_sub_type"] = "user"
-		claims["aud"] = "https://api.box.com/oauth2/token"
-		claims["jti"] = u1.String()
-		claims["exp"] = time.Now().Add(time.Second * 60).Unix()
-		claims["iat"] = time.Now().Unix()
-		token.Claims = claims
-
-		token.Header["kid"] = os.Getenv("PUBLICKEYID")
-
-		tokenString, _ := token.SignedString(privateKey)
-
-		apiURL := "https://api.box.com"
-		resource := "/oauth2/token"
-
-		data := url.Values{}
-		data.Set("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer")
-		data.Add("client_id", os.Getenv("CLIENTID"))
-		data.Add("client_secret", os.Getenv("CLIENTSECRET"))
-		data.Add("assertion", tokenString)
-
-		u, _ := url.ParseRequestURI(apiURL)
-		u.Path = resource
-		urlStr := u.String()
-
-		client := &http.Client{}
-		r, _ := http.NewRequest("POST", urlStr, strings.NewReader(data.Encode())) // <-- URL-encoded payload
-		r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-		r.Header.Add("Content-Length", strconv.Itoa(len(data.Encode())))
-
-		resp, _ := client.Do(r)
-		body, _ := ioutil.ReadAll(resp.Body)
+		body := getToken(userId)
 
 		userToken = new(oauth2.Token)
 		accessToken, _ := jsonparser.GetString(body, "access_token")
@@ -162,6 +122,24 @@ func (bs *BoxService) UserClient(userId string) *box.Client {
 }
 
 func (bs *BoxService) GetEntpToken() (string, error) {
+	body := getToken("")
+	bs.EntpToken = new(oauth2.Token)
+	accessToken, _ := jsonparser.GetString(body, "access_token")
+	expiresIn, _ := jsonparser.GetInt(body, "expires_in")
+	tokenType, _ := jsonparser.GetString(body, "token_type")
+	if accessToken != "" {
+		bs.EntpToken.AccessToken = accessToken
+		bs.EntpToken.Expiry = time.Now().Add((time.Second * time.Duration(expiresIn)))
+		bs.EntpToken.TokenType = tokenType
+		fmt.Printf("\nGot AccessToken: %v and ExpireIn: %v", accessToken, expiresIn)
+	} else {
+		fmt.Printf("\nGot Response: %v", string(body))
+	}
+
+	return "", nil
+}
+
+func getToken(userId string) []byte {
 	privateKeyData, _ := ioutil.ReadFile(os.Getenv("PRIVATEKEY"))
 	privateKey, _ := jwt.ParseRSAPrivateKeyFromPEM(privateKeyData)
 
@@ -171,8 +149,13 @@ func (bs *BoxService) GetEntpToken() (string, error) {
 
 	claims := make(jwt.MapClaims)
 	claims["iss"] = os.Getenv("CLIENTID")
-	claims["sub"] = os.Getenv("ENTERPRISEID")
-	claims["box_sub_type"] = "enterprise"
+	if userId != "" {
+		claims["sub"] = userId
+		claims["box_sub_type"] = "user"
+	} else {
+		claims["sub"] = os.Getenv("ENTERPRISEID")
+		claims["box_sub_type"] = "enterprise"
+	}
 	claims["aud"] = "https://api.box.com/oauth2/token"
 	claims["jti"] = u1.String()
 	claims["exp"] = time.Now().Add(time.Second * 60).Unix()
@@ -203,19 +186,5 @@ func (bs *BoxService) GetEntpToken() (string, error) {
 
 	resp, _ := client.Do(r)
 	body, _ := ioutil.ReadAll(resp.Body)
-
-	bs.EntpToken = new(oauth2.Token)
-	accessToken, _ := jsonparser.GetString(body, "access_token")
-	expiresIn, _ := jsonparser.GetInt(body, "expires_in")
-	tokenType, _ := jsonparser.GetString(body, "token_type")
-	if accessToken != "" {
-		bs.EntpToken.AccessToken = accessToken
-		bs.EntpToken.Expiry = time.Now().Add((time.Second * time.Duration(expiresIn)))
-		bs.EntpToken.TokenType = tokenType
-		fmt.Printf("\nGot AccessToken: %v and ExpireIn: %v", accessToken, expiresIn)
-	} else {
-		fmt.Printf("\nGot Response: %v", string(body))
-	}
-
-	return "", nil
+	return body
 }

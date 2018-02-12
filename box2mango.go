@@ -26,6 +26,10 @@ func main() {
 
 }
 
+func downloadFolderRecursively(boxUserId string, boxFolderId string) {
+	// bs := boxtools.BoxService{}
+}
+
 func createAllUserFolders() {
 	bs := boxtools.BoxService{}
 	users, err := bs.GetEntpUsers()
@@ -34,6 +38,6 @@ func createAllUserFolders() {
 	}
 	for _, user := range users.Entries {
 		fmt.Printf("\nCreating folder for %v\n", user.Login)
-		mangotools.CreateUserBoxFolderEntry(user.Login, user.Name)
+		mangotools.CreateUserBoxFolderEntry(user.Login, user.Name, user.ID)
 	}
 }

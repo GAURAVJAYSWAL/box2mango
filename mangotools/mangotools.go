@@ -23,7 +23,8 @@ type Folder struct {
 	ParentID sql.NullString `json:"parent_id"`
 }
 
-func CreateUserBoxFolderEntry(email_id string, name string) error {
+func CreateUserBoxFolderEntry(emailID string, name string, externalID string) error {
+	var newFolderName string
 	db, err := sql.Open("mysql", os.Getenv("MYSQL"))
 	if err != nil {
 		return err
@@ -55,7 +56,7 @@ func CreateUserBoxFolderEntry(email_id string, name string) error {
 	}
 	// log.Printf("Got network drive %v", ndFolder)
 
-	sql = fmt.Sprintf("SELECT id, name FROM users WHERE domain_id=%v and email_id='%v' limit 1", domain.ID, email_id)
+	sql = fmt.Sprintf("SELECT id, name FROM users WHERE domain_id=%v and email_id='%v' limit 1", domain.ID, emailID)
 	// fmt.Println(sql)
 	userResults, _ := db.Query(sql)
 	var user User
@@ -93,13 +94,14 @@ func CreateUserBoxFolderEntry(email_id string, name string) error {
 			return err
 		}
 		log.Printf("Got orphan owner %v", user)
-
-		sql1 = fmt.Sprintf("SELECT id, filename, parent_id FROM attachments WHERE domain_id=%v and filename='%v' and parent_id=%v and is_deleted=0 limit 1", domain.ID, name, oFolder.ID)
-		sql2 = fmt.Sprintf("INSERT INTO attachments (filename, name, kind, storage, storage_url, user_id, domain_id, access_type, created_at, updated_at, privacy_type, parent_id, is_folder, last_uploaded_by, folder_type, is_visible, follow_lists_count, modified_on) VALUES ('%v', '%v', 'FL', 'DB', 'http://', %v, %v, 'P', NOW(), NOW(), 'R', %v, 1, %v, 'U', 1, 1, NOW())", name, name, user.ID, domain.ID, oFolder.ID, user.ID)
+		newFolderName = fmt.Sprintf("%v%v", name, os.Getenv("BOXFOLDERSUFFIX"))
+		sql1 = fmt.Sprintf("SELECT id, filename, parent_id FROM attachments WHERE domain_id=%v and filename='%v' and parent_id=%v and external_id='%v' and is_deleted=0 limit 1", domain.ID, newFolderName, oFolder.ID, externalID)
+		sql2 = fmt.Sprintf("INSERT INTO attachments (filename, name, kind, storage, storage_url, user_id, domain_id, access_type, created_at, updated_at, privacy_type, parent_id, is_folder, last_uploaded_by, folder_type, is_visible, follow_lists_count, modified_on, external_id) VALUES ('%v', '%v', 'FL', 'DB', 'http://', %v, %v, 'P', NOW(), NOW(), 'R', %v, 1, %v, 'U', 1, 1, NOW(), '%v')", newFolderName, newFolderName, user.ID, domain.ID, oFolder.ID, user.ID, externalID)
 
 	} else {
-		sql1 = fmt.Sprintf("SELECT id, filename, parent_id FROM attachments WHERE domain_id=%v and filename='%v' and parent_id=%v and is_deleted=0 limit 1", domain.ID, user.Name, ndFolder.ID)
-		sql2 = fmt.Sprintf("INSERT INTO attachments (filename, name, kind, storage, storage_url, user_id, domain_id, access_type, created_at, updated_at, privacy_type, parent_id, is_folder, last_uploaded_by, folder_type, is_visible, follow_lists_count, modified_on) VALUES ('%v', '%v', 'FL', 'DB', 'http://', %v, %v, 'P', NOW(), NOW(), 'R', %v, 1, %v, 'U', 1, 1, NOW())", user.Name, user.Name, user.ID, domain.ID, ndFolder.ID, user.ID)
+		newFolderName = fmt.Sprintf("%v%v", user.Name, os.Getenv("BOXFOLDERSUFFIX"))
+		sql1 = fmt.Sprintf("SELECT id, filename, parent_id FROM attachments WHERE domain_id=%v and filename='%v' and parent_id=%v and external_id='%v' and is_deleted=0 limit 1", domain.ID, newFolderName, ndFolder.ID, externalID)
+		sql2 = fmt.Sprintf("INSERT INTO attachments (filename, name, kind, storage, storage_url, user_id, domain_id, access_type, created_at, updated_at, privacy_type, parent_id, is_folder, last_uploaded_by, folder_type, is_visible, follow_lists_count, modified_on, external_id) VALUES ('%v', '%v', 'FL', 'DB', 'http://', %v, %v, 'P', NOW(), NOW(), 'R', %v, 1, %v, 'U', 1, 1, NOW(), '%v')", newFolderName, newFolderName, user.ID, domain.ID, ndFolder.ID, user.ID, externalID)
 	}
 	// fmt.Println(sql)
 	folderResults, _ := db.Query(sql1)
@@ -115,7 +117,7 @@ func CreateUserBoxFolderEntry(email_id string, name string) error {
 	}
 
 	if folderCnt == 0 {
-		fmt.Printf("Creating folder : %v", user.Name)
+		fmt.Printf("Creating folder : %v", newFolderName)
 		// fmt.Println(sql)
 		fResults, _ := db.Exec(sql2)
 		fID, _ := fResults.LastInsertId()
