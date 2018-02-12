@@ -17,31 +17,6 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func (bs *BoxService) GetFolderItems(folderId string, user box.User) (*box.ItemCollection, error) {
-	if user.Role == "user" {
-		_, items, err := bs.Client().FolderService().GetFolderItems(folderId, &box.UrlParams{
-			Limit:    1000,
-			Offset:   0,
-			AsUserId: user.ID,
-		})
-		return items, err
-	} else {
-		_, items, err := bs.UserClient(user.ID).FolderService().GetFolderItems(folderId, &box.UrlParams{
-			Limit:  1000,
-			Offset: 0,
-		})
-		return items, err
-	}
-}
-
-func (bs *BoxService) GetEntpUsers() (*box.Users, error) {
-	_, users, err := bs.Client().UserService().GetEnterpriseUsers(&box.UrlParams{
-		Limit:  1000,
-		Offset: 0,
-	})
-	return users, err
-}
-
 var (
 	configSource = box.NewConfigSource(
 		&oauth2.Config{
@@ -67,6 +42,22 @@ type UserToken struct {
 	UserToken *oauth2.Token
 }
 
+func (bs *BoxService) GetFolderItems(folderId string, userID string) (*box.ItemCollection, error) {
+	_, items, err := bs.UserClient(userID).FolderService().GetFolderItems(folderId, &box.UrlParams{
+		Limit:  1000,
+		Offset: 0,
+	})
+	return items, err
+}
+
+func (bs *BoxService) GetEntpUsers() (*box.Users, error) {
+	_, users, err := bs.Client().UserService().GetEnterpriseUsers(&box.UrlParams{
+		Limit:  1000,
+		Offset: 0,
+	})
+	return users, err
+}
+
 func (bs *BoxService) Client() *box.Client {
 	if bs.EntpToken == nil || bs.EntpToken.Expiry.Before(time.Now()) || bs.EntpToken.Expiry.Equal(time.Now()) {
 		bs.GetEntpToken()
@@ -75,13 +66,13 @@ func (bs *BoxService) Client() *box.Client {
 	return c
 }
 
-func (bs *BoxService) UserClient(userId string) *box.Client {
+func (bs *BoxService) UserClient(userID string) *box.Client {
 	var userToken *oauth2.Token
 	tokenIndex := -1
 	tokenFound := false
 	for _, ut := range bs.UserTokens {
 		tokenIndex++
-		if ut.UserId == userId {
+		if ut.UserId == userID {
 			tokenFound = true
 			userToken = ut.UserToken
 			break
@@ -89,7 +80,7 @@ func (bs *BoxService) UserClient(userId string) *box.Client {
 	}
 
 	if tokenFound == false || userToken == nil || userToken.Expiry.Before(time.Now()) || userToken.Expiry.Equal(time.Now()) {
-		body := getToken(userId)
+		body := getToken(userID)
 
 		userToken = new(oauth2.Token)
 		accessToken, _ := jsonparser.GetString(body, "access_token")
@@ -107,12 +98,12 @@ func (bs *BoxService) UserClient(userId string) *box.Client {
 
 	if tokenFound == true {
 		bs.UserTokens[tokenIndex] = UserToken{
-			UserId:    userId,
+			UserId:    userID,
 			UserToken: userToken,
 		}
 	} else {
 		bs.UserTokens = append(bs.UserTokens, UserToken{
-			UserId:    userId,
+			UserId:    userID,
 			UserToken: userToken,
 		})
 	}
@@ -139,7 +130,7 @@ func (bs *BoxService) GetEntpToken() (string, error) {
 	return "", nil
 }
 
-func getToken(userId string) []byte {
+func getToken(userID string) []byte {
 	privateKeyData, _ := ioutil.ReadFile(os.Getenv("PRIVATEKEY"))
 	privateKey, _ := jwt.ParseRSAPrivateKeyFromPEM(privateKeyData)
 
@@ -149,8 +140,8 @@ func getToken(userId string) []byte {
 
 	claims := make(jwt.MapClaims)
 	claims["iss"] = os.Getenv("CLIENTID")
-	if userId != "" {
-		claims["sub"] = userId
+	if userID != "" {
+		claims["sub"] = userID
 		claims["box_sub_type"] = "user"
 	} else {
 		claims["sub"] = os.Getenv("ENTERPRISEID")

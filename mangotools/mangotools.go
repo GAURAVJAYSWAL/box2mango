@@ -9,6 +9,9 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
+type MangoService struct {
+}
+
 type Domain struct {
 	ID        int64  `json:"id"`
 	DomainKey string `json:"domain_key"`
@@ -23,7 +26,7 @@ type Folder struct {
 	ParentID sql.NullString `json:"parent_id"`
 }
 
-func CreateUserBoxFolderEntry(emailID string, name string, externalID string) error {
+func (ma *MangoService) CreateUserBoxFolderEntry(emailID string, name string, externalID string) error {
 	var newFolderName string
 	db, err := sql.Open("mysql", os.Getenv("MYSQL"))
 	if err != nil {
