@@ -2,6 +2,7 @@ package boxtools
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -40,6 +41,52 @@ type BoxService struct {
 type UserToken struct {
 	UserId    string
 	UserToken *oauth2.Token
+}
+type File struct {
+	ID          string `json:"id,omitempty"`
+	Name        string `json:"name,omitempty"`
+	DownloadUrl string `json:"download_url,omitempty"`
+}
+
+func (bs *BoxService) DownloadFile(fileID string, userID string) (string, error) {
+	req, _ := bs.UserClient(userID).FileService().NewRequest(
+		"GET",
+		fmt.Sprintf("/files/%s?fields=download_url,name", fileID),
+		nil,
+	)
+	var file File
+	_, err0 := bs.UserClient(userID).FileService().Do(req, &file)
+	if err0 != nil {
+		fmt.Printf("Error calling api %v", err0)
+		return "", err0
+	}
+
+	outFilePath := fmt.Sprintf("%v/%v/%v", os.Getenv("SANPATH"), userID, fileID)
+
+	os.MkdirAll(outFilePath, os.ModePerm)
+	outFilePath = fmt.Sprintf("%v/%v", outFilePath, file.Name)
+
+	out, err1 := os.Create(outFilePath)
+	defer out.Close()
+	if err1 != nil {
+		fmt.Printf("Error creating out file %v", err1)
+		return "", err1
+	}
+
+	resp, err2 := http.Get(file.DownloadUrl)
+	defer resp.Body.Close()
+	if err2 != nil {
+		fmt.Printf("Error downloading file %v", err2)
+		return "", err2
+	}
+
+	_, err3 := io.Copy(out, resp.Body)
+	if err3 != nil {
+		fmt.Printf("Error writing out file %v", err3)
+		return "", err3
+	}
+
+	return outFilePath, nil
 }
 
 func (bs *BoxService) GetFolderItems(folderId string, userID string) (*box.ItemCollection, error) {

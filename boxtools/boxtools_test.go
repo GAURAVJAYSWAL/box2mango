@@ -25,4 +25,9 @@ func TestTheWholeThing(t *testing.T) {
 	if err2 != nil {
 		t.Errorf("Error getting folder items: %v", err2)
 	}
+
+	_, err3 := bs.DownloadFile("263608276484", "272313645")
+	if err3 != nil {
+		t.Errorf("Error download file: %v", err3)
+	}
 }

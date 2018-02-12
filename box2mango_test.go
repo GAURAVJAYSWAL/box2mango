@@ -28,5 +28,5 @@ func TestDownloadFolders(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error loading .env file")
 	}
-	b2m.downloadFolderRecursively("0", "272313645")
+	b2m.downloadFolderRecursively("0", "272313645", "", "Root")
 }

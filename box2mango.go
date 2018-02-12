@@ -31,16 +31,24 @@ func main() {
 
 }
 
-func (b2m *Box2Mango) downloadFolderRecursively(folderID string, userID string) {
-	fmt.Printf("\nDownloading folder id %v for user id %v\n", folderID, userID)
-	items, err := b2m.box.GetFolderItems(folderID, userID)
-	if err != nil {
-		fmt.Printf("Error getting folder items: %v", err)
+func (b2m *Box2Mango) downloadFolderRecursively(folderBoxID string, userBoxID string, parentFolderBoxID string, folderName string) {
+	fmt.Printf("\nDownloading folder id %v for user id %v\n", folderBoxID, userBoxID)
+
+	if folderBoxID != "0" {
+		folderID, _ := b2m.mango.CreateBoxChildFolderEntry(userBoxID, parentFolderBoxID, folderName, folderBoxID)
+		fmt.Printf("Created folder entry %v", folderID)
+	}
+
+	items, err1 := b2m.box.GetFolderItems(folderBoxID, userBoxID)
+	if err1 != nil {
+		fmt.Printf("Error getting folder items: %v", err1)
 	}
 
 	for _, item := range items.Entries {
-		if item.Type == "folder" {
-			b2m.downloadFolderRecursively(item.ID, userID)
+		if item.Type == "file" {
+			b2m.box.DownloadFile(item.ID, userBoxID)
+		} else {
+			b2m.downloadFolderRecursively(item.ID, userBoxID, folderBoxID, item.Name)
 		}
 	}
 }
