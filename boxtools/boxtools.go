@@ -90,6 +90,14 @@ func (bs *BoxService) DownloadFile(fileID string, userID string) (string, error)
 	return outFilePath, nil
 }
 
+func (bs *BoxService) GetFolderCollaborations(folderId string, userID string) (*box.Collaborations, error) {
+	_, collabs, err := bs.UserClient(userID).FolderService().GetCollaborations(folderId, &box.UrlParams{
+		Limit:  1000,
+		Offset: 0,
+	})
+	return collabs, err
+}
+
 func (bs *BoxService) GetFolderItems(folderId string, userID string) (*box.ItemCollection, error) {
 	_, items, err := bs.UserClient(userID).FolderService().GetFolderItems(folderId, &box.UrlParams{
 		Limit:  1000,

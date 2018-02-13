@@ -39,6 +39,34 @@ type File struct {
 	IsVisible  string         `json:"is_visible"`
 }
 
+func (ma *MangoService) CreateFollowListEntry(folderID int64, emailID string, roleID int) (int64, error) {
+	db, err := sql.Open("mysql", os.Getenv("MYSQL"))
+	if err != nil {
+		lib.Err("CreateFollowListEntry", err)
+		return 0, err
+	}
+	defer db.Close()
+
+	var user User
+	userCnt := 0
+	sql1 := fmt.Sprintf("SELECT id, name FROM users WHERE domain_id in (SELECT id FROM domains where domain_key='%v') and email_id='%v' limit 1", os.Getenv("DOMAINKEY"), emailID)
+	userResults, _ := db.Query(sql1)
+	for userResults.Next() {
+		userCnt++
+		userResults.Scan(&user.ID, &user.Name)
+	}
+	if userCnt != 0 {
+		sql2 := fmt.Sprintf("INSERT INTO follow_list (attachment_id, user_id, created_at, updated_at, role_id) VALUES (%v, %v, NOW(), NOW(), %v)", folderID, user.ID, roleID)
+		followResults, err1 := db.Exec(sql2)
+		if err1 == nil {
+			followID, _ := followResults.LastInsertId()
+			lib.Info(fmt.Sprintf("Created followlist ID : %v", followID))
+			return followID, nil
+		}
+	}
+	return 0, nil
+}
+
 func (ma *MangoService) CreateBoxChildFileEntry(folderID int64, fileName string, sanPath string, externalID string) (int64, error) {
 	db, err := sql.Open("mysql", os.Getenv("MYSQL"))
 	if err != nil {
