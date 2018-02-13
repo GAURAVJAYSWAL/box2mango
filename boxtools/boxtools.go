@@ -2,6 +2,7 @@ package boxtools
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -14,41 +15,180 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	uuid "github.com/satori/go.uuid"
 	"github.com/siddhartham/box"
+	"github.com/siddhartham/box2mango/lib"
 	"golang.org/x/oauth2"
 )
 
-func GetEntpUsers(tok *oauth2.Token) (*box.Users, error) {
-	var (
-		configSource = box.NewConfigSource(
-			&oauth2.Config{
-				ClientID:     os.Getenv("CLIENTID"),
-				ClientSecret: os.Getenv("CLIENTSECRET"),
-				Scopes:       nil,
-				Endpoint: oauth2.Endpoint{
-					AuthURL:  "https://app.box.com/api/oauth2/authorize",
-					TokenURL: "https://app.box.com/api/oauth2/token",
-				},
-				RedirectURL: "http://localhost:8080/handle",
+var (
+	configSource = box.NewConfigSource(
+		&oauth2.Config{
+			ClientID:     os.Getenv("CLIENTID"),
+			ClientSecret: os.Getenv("CLIENTSECRET"),
+			Scopes:       nil,
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "https://app.box.com/api/oauth2/authorize",
+				TokenURL: "https://app.box.com/api/oauth2/token",
 			},
-		)
-		c = configSource.NewClient(tok)
+			RedirectURL: "http://localhost:8080/handle",
+		},
 	)
+)
 
-	_, users, err := c.UserService().GetEnterpriseUsers(0, 1000)
-
-	return users, err
-
+type BoxService struct {
+	EntpToken  *oauth2.Token
+	UserTokens []UserToken
 }
 
-func GetEntpToken() (*oauth2.Token, string, error) {
-	privateKeyData, err := ioutil.ReadFile(os.Getenv("PRIVATEKEY"))
-	if err != nil {
-		return nil, "Getting PrivateKey", err
+type UserToken struct {
+	UserId    string
+	UserToken *oauth2.Token
+}
+type File struct {
+	ID          string `json:"id,omitempty"`
+	Name        string `json:"name,omitempty"`
+	DownloadUrl string `json:"download_url,omitempty"`
+}
+
+func (bs *BoxService) DownloadFile(fileID string, userID string) (string, error) {
+	req, _ := bs.UserClient(userID).FileService().NewRequest(
+		"GET",
+		fmt.Sprintf("/files/%s?fields=download_url,name", fileID),
+		nil,
+	)
+	var file File
+	_, err0 := bs.UserClient(userID).FileService().Do(req, &file)
+	if err0 != nil {
+		lib.Err("DownloadFile", err0)
+		return "", err0
 	}
-	privateKey, err := jwt.ParseRSAPrivateKeyFromPEM(privateKeyData)
-	if err != nil {
-		return nil, "Parsing PrivateKey", err
+
+	outFilePath := fmt.Sprintf("%v/%v/%v", os.Getenv("SANPATH"), userID, fileID)
+
+	os.MkdirAll(outFilePath, os.ModePerm)
+	outFilePath = fmt.Sprintf("%v/%v", outFilePath, file.Name)
+
+	out, err1 := os.Create(outFilePath)
+	defer out.Close()
+	if err1 != nil {
+		lib.Err("DownloadFile", err1)
+		return "", err1
 	}
+
+	resp, err2 := http.Get(file.DownloadUrl)
+	defer resp.Body.Close()
+	if err2 != nil {
+		lib.Err("DownloadFile", err2)
+		return "", err2
+	}
+
+	_, err3 := io.Copy(out, resp.Body)
+	if err3 != nil {
+		lib.Err("DownloadFile", err3)
+		return "", err3
+	}
+
+	return outFilePath, nil
+}
+
+func (bs *BoxService) GetFolderCollaborations(folderId string, userID string) (*box.Collaborations, error) {
+	_, collabs, err := bs.UserClient(userID).FolderService().GetCollaborations(folderId, &box.UrlParams{
+		Limit:  1000,
+		Offset: 0,
+	})
+	return collabs, err
+}
+
+func (bs *BoxService) GetFolderItems(folderId string, userID string) (*box.ItemCollection, error) {
+	_, items, err := bs.UserClient(userID).FolderService().GetFolderItems(folderId, &box.UrlParams{
+		Limit:  1000,
+		Offset: 0,
+	})
+	return items, err
+}
+
+func (bs *BoxService) GetEntpUsers() (*box.Users, error) {
+	_, users, err := bs.Client().UserService().GetEnterpriseUsers(&box.UrlParams{
+		Limit:  1000,
+		Offset: 0,
+	})
+	return users, err
+}
+
+func (bs *BoxService) Client() *box.Client {
+	if bs.EntpToken == nil || bs.EntpToken.Expiry.Before(time.Now()) || bs.EntpToken.Expiry.Equal(time.Now()) {
+		bs.GetEntpToken()
+	}
+	c := configSource.NewClient(bs.EntpToken)
+	return c
+}
+
+func (bs *BoxService) UserClient(userID string) *box.Client {
+	var userToken *oauth2.Token
+	tokenIndex := -1
+	tokenFound := false
+	for _, ut := range bs.UserTokens {
+		tokenIndex++
+		if ut.UserId == userID {
+			tokenFound = true
+			userToken = ut.UserToken
+			break
+		}
+	}
+
+	if tokenFound == false || userToken == nil || userToken.Expiry.Before(time.Now()) || userToken.Expiry.Equal(time.Now()) {
+		body := getToken(userID)
+
+		userToken = new(oauth2.Token)
+		accessToken, _ := jsonparser.GetString(body, "access_token")
+		expiresIn, _ := jsonparser.GetInt(body, "expires_in")
+		tokenType, _ := jsonparser.GetString(body, "token_type")
+		if accessToken != "" {
+			userToken.AccessToken = accessToken
+			userToken.Expiry = time.Now().Add((time.Second * time.Duration(expiresIn)))
+			userToken.TokenType = tokenType
+			lib.Info(fmt.Sprintf("User AccessToken: %v and ExpireIn: %v", accessToken, expiresIn))
+		} else {
+			lib.Err("UserClient", fmt.Errorf(string(body)))
+		}
+	}
+
+	if tokenFound == true {
+		bs.UserTokens[tokenIndex] = UserToken{
+			UserId:    userID,
+			UserToken: userToken,
+		}
+	} else {
+		bs.UserTokens = append(bs.UserTokens, UserToken{
+			UserId:    userID,
+			UserToken: userToken,
+		})
+	}
+
+	c := configSource.NewClient(userToken)
+	return c
+}
+
+func (bs *BoxService) GetEntpToken() (string, error) {
+	body := getToken("")
+	bs.EntpToken = new(oauth2.Token)
+	accessToken, _ := jsonparser.GetString(body, "access_token")
+	expiresIn, _ := jsonparser.GetInt(body, "expires_in")
+	tokenType, _ := jsonparser.GetString(body, "token_type")
+	if accessToken != "" {
+		bs.EntpToken.AccessToken = accessToken
+		bs.EntpToken.Expiry = time.Now().Add((time.Second * time.Duration(expiresIn)))
+		bs.EntpToken.TokenType = tokenType
+		lib.Info(fmt.Sprintf("User AccessToken: %v and ExpireIn: %v", accessToken, expiresIn))
+	} else {
+		lib.Err("GetEntpToken", fmt.Errorf(string(body)))
+	}
+
+	return "", nil
+}
+
+func getToken(userID string) []byte {
+	privateKeyData, _ := ioutil.ReadFile(os.Getenv("PRIVATEKEY"))
+	privateKey, _ := jwt.ParseRSAPrivateKeyFromPEM(privateKeyData)
 
 	u1 := uuid.Must(uuid.NewV4())
 
@@ -56,8 +196,13 @@ func GetEntpToken() (*oauth2.Token, string, error) {
 
 	claims := make(jwt.MapClaims)
 	claims["iss"] = os.Getenv("CLIENTID")
-	claims["sub"] = os.Getenv("ENTERPRISEID")
-	claims["box_sub_type"] = "enterprise"
+	if userID != "" {
+		claims["sub"] = userID
+		claims["box_sub_type"] = "user"
+	} else {
+		claims["sub"] = os.Getenv("ENTERPRISEID")
+		claims["box_sub_type"] = "enterprise"
+	}
 	claims["aud"] = "https://api.box.com/oauth2/token"
 	claims["jti"] = u1.String()
 	claims["exp"] = time.Now().Add(time.Second * 60).Unix()
@@ -88,16 +233,5 @@ func GetEntpToken() (*oauth2.Token, string, error) {
 
 	resp, _ := client.Do(r)
 	body, _ := ioutil.ReadAll(resp.Body)
-
-	entpToken := new(oauth2.Token)
-	if value, err := jsonparser.GetString(body, "access_token"); err == nil {
-		entpToken.AccessToken = value
-	}
-	// if value, err := jsonparser.GetInt(body, "expires_in"); err == nil {
-	// 	entpToken.Expiry = value
-	// }
-
-	fmt.Printf("Got AccessToken: %v", entpToken)
-
-	return entpToken, "", nil
+	return body
 }
