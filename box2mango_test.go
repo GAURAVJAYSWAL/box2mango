@@ -1,9 +1,8 @@
-package box2mango
+package main
 
 import (
 	"testing"
 
-	"github.com/joho/godotenv"
 	"github.com/siddhartham/box2mango/boxtools"
 	"github.com/siddhartham/box2mango/mangotools"
 )
@@ -15,18 +14,6 @@ var (
 	}
 )
 
-func TestCreateAllUserFolders(t *testing.T) {
-	err := godotenv.Load(".env")
-	if err != nil {
-		t.Errorf("Error loading .env file")
-	}
-	b2m.createAllUserFolders()
-}
+func TestCreateUserFolder(t *testing.T) {
 
-func TestDownloadFolders(t *testing.T) {
-	err := godotenv.Load(".env")
-	if err != nil {
-		t.Errorf("Error loading .env file")
-	}
-	b2m.downloadFolderRecursively("0", "272313645", "", "Root")
 }

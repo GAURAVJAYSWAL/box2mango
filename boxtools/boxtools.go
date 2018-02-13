@@ -15,6 +15,7 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	uuid "github.com/satori/go.uuid"
 	"github.com/siddhartham/box"
+	"github.com/siddhartham/box2mango/lib"
 	"golang.org/x/oauth2"
 )
 
@@ -57,7 +58,7 @@ func (bs *BoxService) DownloadFile(fileID string, userID string) (string, error)
 	var file File
 	_, err0 := bs.UserClient(userID).FileService().Do(req, &file)
 	if err0 != nil {
-		fmt.Printf("Error calling api %v", err0)
+		lib.Err("DownloadFile", err0)
 		return "", err0
 	}
 
@@ -69,20 +70,20 @@ func (bs *BoxService) DownloadFile(fileID string, userID string) (string, error)
 	out, err1 := os.Create(outFilePath)
 	defer out.Close()
 	if err1 != nil {
-		fmt.Printf("Error creating out file %v", err1)
+		lib.Err("DownloadFile", err1)
 		return "", err1
 	}
 
 	resp, err2 := http.Get(file.DownloadUrl)
 	defer resp.Body.Close()
 	if err2 != nil {
-		fmt.Printf("Error downloading file %v", err2)
+		lib.Err("DownloadFile", err2)
 		return "", err2
 	}
 
 	_, err3 := io.Copy(out, resp.Body)
 	if err3 != nil {
-		fmt.Printf("Error writing out file %v", err3)
+		lib.Err("DownloadFile", err3)
 		return "", err3
 	}
 
@@ -137,9 +138,9 @@ func (bs *BoxService) UserClient(userID string) *box.Client {
 			userToken.AccessToken = accessToken
 			userToken.Expiry = time.Now().Add((time.Second * time.Duration(expiresIn)))
 			userToken.TokenType = tokenType
-			fmt.Printf("\nGot User AccessToken: %v and ExpireIn: %v", accessToken, expiresIn)
+			lib.Info(fmt.Sprintf("User AccessToken: %v and ExpireIn: %v", accessToken, expiresIn))
 		} else {
-			fmt.Printf("\nGot Response: %v", string(body))
+			lib.Err("UserClient", fmt.Errorf(string(body)))
 		}
 	}
 
@@ -169,9 +170,9 @@ func (bs *BoxService) GetEntpToken() (string, error) {
 		bs.EntpToken.AccessToken = accessToken
 		bs.EntpToken.Expiry = time.Now().Add((time.Second * time.Duration(expiresIn)))
 		bs.EntpToken.TokenType = tokenType
-		fmt.Printf("\nGot AccessToken: %v and ExpireIn: %v", accessToken, expiresIn)
+		lib.Info(fmt.Sprintf("User AccessToken: %v and ExpireIn: %v", accessToken, expiresIn))
 	} else {
-		fmt.Printf("\nGot Response: %v", string(body))
+		lib.Err("GetEntpToken", fmt.Errorf(string(body)))
 	}
 
 	return "", nil
