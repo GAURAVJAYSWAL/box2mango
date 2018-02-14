@@ -59,3 +59,17 @@ func AddFileToS3(s *session.Session, fileDir string) (error, *s3.PutObjectOutput
 	})
 	return err, resp
 }
+
+func desanitizeString(str string) string {
+	str = strings.Replace(str, "&amp;", "&", -1)
+	str = strings.Replace(str, "&#39;", "\\'", -1)
+	str = strings.Replace(str, "&#039;", "\\'", -1)
+	str = strings.Replace(str, "&#34;", "\"", -1)
+	str = strings.Replace(str, "&#47;", "\\/", -1)
+	str = strings.Replace(str, "&#92;", "\\\\", -1)
+	str = strings.Replace(str, "&lt;", "\\<", -1)
+	str = strings.Replace(str, "&gt;", "\\>", -1)
+	str = strings.Replace(str, "&rsquo;", "\\'", -1)
+	str = strings.Replace(str, "&quot;", "\"", -1)
+	return str
+}
